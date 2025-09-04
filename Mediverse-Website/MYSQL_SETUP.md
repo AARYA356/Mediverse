@@ -63,7 +63,7 @@ The application is configured to use the following MySQL settings in `applicatio
 ```properties
 # Update these values according to your MySQL setup
 spring.datasource.url=jdbc:mysql://localhost:3306/mediverse_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-spring.datasource.username=your_mysql_username
+spring.datasource.username=your_mysql_username 
 spring.datasource.password=your_mysql_password
 ```
 

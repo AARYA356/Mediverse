@@ -10,6 +10,8 @@
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
 </head>
 <body class="bg-gray-100">
     
@@ -161,7 +163,7 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <button th:if="${appointment.status.name() == 'SCHEDULED'}" 
-                                                onclick="showDeleteModal('${appointment.id}')" 
+                                                th:onclick="'showDeleteModal(' + ${appointment.id} + ')'" 
                                                 class="text-red-600 hover:text-red-900"
                                                 title="Cancel Appointment">
                                             <i class="fas fa-trash-alt"></i>
@@ -192,13 +194,9 @@
                                     </div>
                                 </div>
                                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                    <form id="deleteForm" method="post" th:action="${'/patient/appointments/' + appointmentId}">
-                                        <input type="hidden" name="_method" value="DELETE" />
-                                        <input type="hidden" name="_csrf" th:value="${_csrf.token}" />
-                                        <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
-                                            Yes, cancel appointment
-                                        </button>
-                                    </form>
+                                    <button type="button" onclick="confirmDelete()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+                                        Yes, cancel appointment
+                                    </button>
                                     <button type="button" onclick="hideDeleteModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
                                         No, go back
                                     </button>
@@ -206,26 +204,60 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <script>
+                        let currentAppointmentId = null;
+                        const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+                        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+                        
+                        // Show delete confirmation modal
                         function showDeleteModal(appointmentId) {
-                            document.getElementById('deleteForm').action = '/patient/appointments/' + appointmentId;
+                            currentAppointmentId = appointmentId;
                             document.getElementById('deleteModal').classList.remove('hidden');
-                            document.body.classList.add('overflow-hidden');
                         }
                         
+                        // Handle delete confirmation
+                        function confirmDelete() {
+                            if (!currentAppointmentId) return;
+                            
+                            fetch(`/patient/appointments/${currentAppointmentId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    [csrfHeader]: csrfToken
+                                },
+                                credentials: 'same-origin'
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    return response.text().then(text => { throw new Error(text) });
+                                }
+                                return response.text();
+                            })
+                            .then(message => {
+                                alert(message);
+                                window.location.reload();
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                alert('Failed to cancel appointment: ' + error.message);
+                            })
+                            .finally(() => {
+                                hideDeleteModal();
+                            });
+                        }
+                        
+                        // Hide delete confirmation modal
                         function hideDeleteModal() {
                             document.getElementById('deleteModal').classList.add('hidden');
-                            document.body.classList.remove('overflow-hidden');
                         }
                         
                         // Close modal when clicking outside
-                        window.onclick = function(event) {
-                            const modal = document.getElementById('deleteModal');
-                            if (event.target === modal) {
+                        document.getElementById('deleteModal').addEventListener('click', function(event) {
+                            if (event.target === this) {
                                 hideDeleteModal();
                             }
-                        }
+                        });
                     </script>
                     
                     <!-- Empty state -->

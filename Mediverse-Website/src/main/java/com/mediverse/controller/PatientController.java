@@ -2,6 +2,7 @@ package com.mediverse.controller;
 
 import com.mediverse.dto.AppointmentBookingDTO;
 import com.mediverse.entity.Appointment;
+import com.mediverse.entity.AppointmentStatus;
 import com.mediverse.entity.Department;
 import com.mediverse.entity.Doctor;
 import com.mediverse.entity.Patient;
@@ -10,10 +11,10 @@ import com.mediverse.repository.AppointmentRepository;
 import com.mediverse.repository.DepartmentRepository;
 import com.mediverse.repository.DoctorRepository;
 import com.mediverse.repository.PatientRepository;
-import com.mediverse.entity.AppointmentStatus;
 import com.mediverse.service.AppointmentService;
 import com.mediverse.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -334,12 +335,25 @@ public class PatientController {
         return "patient/edit-appointment";
     }
     
-    @PostMapping("/update-appointment/{id}")
-    public String updateAppointment(@PathVariable Long id,
-                                  @Valid @ModelAttribute("appointmentBooking") AppointmentBookingDTO bookingDTO,
-                                  BindingResult bindingResult,
+    @PostMapping("/update-appointment")
+    public String updateAppointment(@RequestParam("appointmentId") String idStr,
+                                  @RequestParam("doctorId") Long doctorId,
+                                  @RequestParam("appointmentDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate appointmentDate,
+                                  @RequestParam("appointmentTime") @DateTimeFormat(pattern = "HH:mm") LocalTime appointmentTime,
+                                  @RequestParam("reason") String reason,
+                                  @RequestParam(value = "notes", required = false) String notes,
                                   Authentication authentication,
                                   RedirectAttributes redirectAttributes) {
+        
+        // Convert string ID to Long
+        Long id;
+        try {
+            id = Long.parseLong(idStr);
+        } catch (NumberFormatException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Invalid appointment ID");
+            return "redirect:/patient/appointments";
+        }
+        
         String email = authentication.getName();
         Optional<User> userOptional = userService.findByEmail(email);
         
@@ -366,30 +380,18 @@ public class PatientController {
             return "redirect:/patient/appointments?error=cannot_edit_completed_or_cancelled";
         }
         
-        if (bindingResult.hasErrors()) {
-            List<Department> departments = departmentRepository.findAll();
-            List<Doctor> doctors = doctorRepository.findByDepartmentId(bookingDTO.getDepartmentId());
-            
-            bindingResult.getFieldErrors().forEach(error -> {
-                redirectAttributes.addFlashAttribute("org.springframework.validation.BindingResult.appointmentBooking", bindingResult);
-                redirectAttributes.addFlashAttribute("appointmentBooking", bookingDTO);
-            });
-            
-            return "redirect:/patient/edit-appointment/" + id;
-        }
-        
         try {
             // Update the appointment
-            existingAppointment.setDoctor(doctorRepository.findById(bookingDTO.getDoctorId())
+            existingAppointment.setDoctor(doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new RuntimeException("Doctor not found")));
                 
             // Combine date and time into a single LocalDateTime
             LocalDateTime appointmentDateTime = LocalDateTime.of(
-                bookingDTO.getAppointmentDate(), 
-                bookingDTO.getAppointmentTime()
+                appointmentDate, 
+                appointmentTime
             );
             existingAppointment.setAppointmentDateTime(appointmentDateTime);
-            existingAppointment.setReason(bookingDTO.getReason());
+            existingAppointment.setReason(reason);
             existingAppointment.setUpdatedAt(LocalDateTime.now());
             
             appointmentRepository.save(existingAppointment);
@@ -403,42 +405,42 @@ public class PatientController {
         }
     }
     
-    @PostMapping("/appointments/{id}")
+    @DeleteMapping("/appointments/{id}")
     @ResponseBody
-    public ResponseEntity<String> cancelAppointment(@PathVariable Long id, 
-                                             Authentication authentication) {
-        String email = authentication.getName();
-        Optional<User> userOptional = userService.findByEmail(email);
-        
-        if (userOptional.isEmpty() || !userOptional.get().getRole().name().equals("PATIENT")) {
-            return ResponseEntity.status(401).body("Unauthorized access");
-        }
-        
-        // Get the appointment and verify it belongs to the patient
-        Optional<Appointment> appointmentOptional = appointmentRepository.findById(id);
-        if (appointmentOptional.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Appointment appointment = appointmentOptional.get();
-        if (!appointment.getPatient().getUser().getEmail().equals(email)) {
-            return ResponseEntity.status(403).body("You don't have permission to cancel this appointment");
-        }
-
-
-        
-        // Check if the appointment can be cancelled
-        if (appointment.getStatus() != AppointmentStatus.SCHEDULED) {
-            return ResponseEntity.badRequest().body("Only scheduled appointments can be cancelled");
-        }
+    public ResponseEntity<String> cancelAppointment(
+            @PathVariable("id") Long id,
+            Authentication authentication) {
         
         try {
+            String email = authentication.getName();
+            Optional<User> userOptional = userService.findByEmail(email);
+            
+            if (userOptional.isEmpty() || !userOptional.get().getRole().name().equals("PATIENT")) {
+                return ResponseEntity.status(401).body("Unauthorized access");
+            }
+            
+            // Get the appointment and verify it belongs to the patient
+            Optional<Appointment> appointmentOptional = appointmentRepository.findById(id);
+            if (appointmentOptional.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Appointment appointment = appointmentOptional.get();
+            if (!appointment.getPatient().getUser().getEmail().equals(email)) {
+                return ResponseEntity.status(403).body("You don't have permission to cancel this appointment");
+            }
+            
+            // Check if the appointment can be cancelled
+            if (appointment.getStatus() != AppointmentStatus.SCHEDULED) {
+                return ResponseEntity.badRequest().body("Only scheduled appointments can be cancelled");
+            }
+            
             // Update the appointment status to CANCELLED
             appointment.setStatus(AppointmentStatus.CANCELLED);
             appointment.setUpdatedAt(LocalDateTime.now());
             appointmentRepository.save(appointment);
             
-            return ResponseEntity.ok().body("Appointment cancelled successfully");
+            return ResponseEntity.ok("Appointment cancelled successfully");
             
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error cancelling appointment: " + e.getMessage());
