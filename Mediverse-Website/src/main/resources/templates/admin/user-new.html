@@ -148,6 +148,20 @@
                             <span th:errors="*{role}"></span>
                         </div>
                     </div>
+
+                    <!-- Department (only for doctors) -->
+                    <div id="departmentField" class="hidden">
+                        <label for="departmentId" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-building mr-1"></i>Department
+                        </label>
+                        <select id="departmentId" name="departmentId"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select a department</option>
+                            <option th:each="dept : ${departments}" 
+                                    th:value="${dept.id}" 
+                                    th:text="${dept.name}"></option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Active Status -->
@@ -172,6 +186,28 @@
                     </button>
                 </div>
             </form>
+
+            <!-- JavaScript to show/hide department field -->
+            <script th:inline="javascript">
+                document.addEventListener('DOMContentLoaded', function() {
+                    const roleSelect = document.getElementById('role');
+                    const departmentField = document.getElementById('departmentField');
+                    
+                    function toggleDepartmentField() {
+                        if (roleSelect.value === 'DOCTOR') {
+                            departmentField.classList.remove('hidden');
+                        } else {
+                            departmentField.classList.add('hidden');
+                        }
+                    }
+                    
+                    // Initial check
+                    toggleDepartmentField();
+                    
+                    // Add event listener for role change
+                    roleSelect.addEventListener('change', toggleDepartmentField);
+                });
+            </script>
 
             <!-- Additional Information -->
             <div class="mt-8 p-4 bg-blue-50 rounded-lg">

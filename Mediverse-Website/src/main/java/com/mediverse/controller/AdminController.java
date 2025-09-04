@@ -68,14 +68,17 @@ public class AdminController {
     public String newUser(Model model) {
         model.addAttribute("user", new User());
         model.addAttribute("roles", Role.values());
+        model.addAttribute("departments", departmentRepository.findByIsActiveTrue());
         return "admin/user-new";
     }
 
     @PostMapping("/users/new")
     public String createUser(@ModelAttribute User user, BindingResult result, 
+                           @RequestParam(required = false) Long departmentId,
                            Model model, RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
             model.addAttribute("roles", Role.values());
+            model.addAttribute("departments", departmentRepository.findByIsActiveTrue());
             return "admin/user-new";
         }
 
@@ -83,6 +86,7 @@ public class AdminController {
         if (userService.existsByEmail(user.getEmail())) {
             model.addAttribute("error", "Email address is already registered");
             model.addAttribute("roles", Role.values());
+            model.addAttribute("departments", departmentRepository.findByIsActiveTrue());
             return "admin/user-new";
         }
 
@@ -108,6 +112,7 @@ public class AdminController {
         } catch (Exception e) {
             model.addAttribute("error", "Error creating user: " + e.getMessage());
             model.addAttribute("roles", Role.values());
+            model.addAttribute("departments", departmentRepository.findByIsActiveTrue());
             return "admin/user-new";
         }
     }
